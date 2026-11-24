@@ -151,11 +151,34 @@ void *lse_remover(t_lse *lista, const void *chave, t_comparador comparar) {
     return carga;
 }
 
-int lse_inserir_ordenado(t_lse *l, void *c, t_comparador cmp) {
-    (void)l;
-    (void)c;
-    (void)cmp;
-    return 0; /* TODO M05 */
+int lse_inserir_ordenado(t_lse *lista, void *carga, t_comparador comparar) {
+    if (lista == NULL || comparar == NULL) {
+        return 0;
+    }
+
+    t_elem *novo = malloc(sizeof(t_elem));
+    if (novo == NULL) {
+        return 0;
+    }
+
+    novo->carga = carga;
+
+    t_elem *anterior = NULL;
+    t_elem *atual = lista->inicio;
+    while (atual != NULL && comparar(atual->carga, carga) <= 0) {
+        anterior = atual;
+        atual = atual->prox;
+    }
+
+    novo->prox = atual;
+    if (anterior == NULL) {
+        lista->inicio = novo;
+    } else {
+        anterior->prox = novo;
+    }
+
+    lista->tamanho++;
+    return 1;
 }
 
 void lse_destruir(t_lse *lista, void (*destruir_carga)(void *)) {

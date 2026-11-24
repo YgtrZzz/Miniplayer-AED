@@ -23,12 +23,12 @@ static void test_copia_independente(void) {
 
 static void test_truncamento(void) {
     char longo[200];
-    memset(longo, 'a', sizeof longo - 1);
-    longo[sizeof longo - 1] = '\0';
+    memset(longo, 'a', sizeof(longo) - 1);
+    longo[sizeof(longo) - 1] = '\0';
     t_musica *m = musica_criar(3, longo, longo, 0);
     assert(m != NULL);
-    assert(strlen(m->titulo) == sizeof m->titulo - 1);
-    assert(strlen(m->artista) == sizeof m->artista - 1);
+    assert(strlen(m->titulo) == sizeof(m->titulo) - 1);
+    assert(strlen(m->artista) == sizeof(m->artista) - 1);
     musica_destruir(m);
 }
 

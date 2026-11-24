@@ -119,3 +119,13 @@ A carga `NULL` é permitida pela decisão da M03, mas `lse_buscar`, `lse_remover
 1. Retornar um código de status (`int`: `1` encontrado / `0` ausente) e entregar a carga por parâmetro de saída (`void **carga_saida`).
 2. Proibir carga `NULL` já nas funções de inserção (`lse_inserir_*` retornando `0`).
 3. Oferecer função auxiliar booleana (`lse_contem`) ou verificar `lse_tamanho` antes da remoção no início.
+
+## M05 — Contratos implementados (`lse` — inserção ordenada)
+### `int lse_inserir_ordenado(t_lse *lista, void *carga, t_comparador comparar)`
+- **Pré-condições:** `lista != NULL` e `comparar != NULL`. A lista deve estar previamente ordenada segundo o mesmo critério definido por `comparar`; a operação não tem responsabilidade de reordenar uma lista previamente desordenada. O callback recebe `(carga_existente, carga_nova)` — ambos apontando para cargas — e não deve alterá-las.
+- **Pós-condições:** aloca um novo nó e o insere na posição que mantém a ordenação; em caso de empate (`comparar(carga_existente, carga_nova) == 0`), insere **após** os elementos existentes com a mesma chave (*estabilidade*). Incrementa `tamanho` em 1. Em erro, a lista permanece inalterada.
+- **Retorno:** `1` em sucesso; `0` se `lista == NULL`, `comparar == NULL` ou `malloc` falhar.
+- **Memória:** a LSE aloca apenas o nó (`t_elem`) e guarda o ponteiro `carga` sem copiá-lo nem assumir automaticamente sua propriedade.
+- **Complexidade:** tempo O(1) no melhor caso (vazia ou início) e O(n) no caso médio/pior caso (meio ou fim); espaço auxiliar O(1).
+- **Invariantes preservadas:** `tamanho` aumenta exatamente em 1; `tamanho` == nós alcançáveis; `inicio != NULL` quando `tamanho > 0`; último `prox == NULL`; sem ciclos; ordenação mantida com estabilidade.
+- **Testes associados:** `missoes/M05/test_m05.c` (`teste_vazia_inicio_meio_fim`, `teste_duplicados_estaveis`, `teste_invalido_e_reinsercao`).

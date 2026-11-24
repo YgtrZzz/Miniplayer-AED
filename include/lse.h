@@ -75,8 +75,11 @@ void *lse_buscar(const t_lse *lista, const void *chave, t_comparador comparar);
 void *lse_remover(t_lse *lista, const void *chave, t_comparador comparar);
 
 /*
- * M05: insere a carga mantendo a ordenacao definida por comparar.
- * Retorno: 1 em sucesso, 0 em erro.
+ * Insere a carga mantendo a lista ordenada segundo comparar(carga_existente, carga_nova).
+ * Parametros: lista (previamente ordenada pelo mesmo criterio), carga e callback comparar.
+ * Empates: insere depois dos elementos existentes com a mesma chave (estabilidade).
+ * Retorno: 1 em sucesso, 0 se lista ou comparar forem NULL ou em falha de alocacao (lista inalterada).
+ * Memoria: a lista aloca o no e guarda apenas o ponteiro da carga, sem copia-la.
  */
 int lse_inserir_ordenado(t_lse *lista, void *carga, t_comparador comparar);
 
