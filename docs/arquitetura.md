@@ -15,7 +15,7 @@ MiniPlayer → (LSE, Pilha, Fila) → LSE → t_elem interno.
 - **Por que `void *`?** Permite que a mesma LSE armazene qualquer tipo de dado (`int`, `t_musica`, etc.) sem duplicar código e sem acoplar `lse.c` ao módulo `musica`. Operações que precisam inspecionar ou liberar a carga recebem funções callback (`t_comparador`, `t_lse_visitar`, `destruir_carga`).
 - **Quem é dono das cargas?** Quem alocou a carga (por exemplo, a biblioteca do MiniPlayer é dona das `t_musica`). A LSE é dona apenas dos nós (`t_elem`); ela só libera as cargas se `lse_destruir` receber um callback destruidor não nulo.
 - **Como tratar referências compartilhadas?** Como a biblioteca possui as músicas e estruturas futuras (fila e histórico) apenas guardam ponteiros para elas, ao remover ou liberar uma música da biblioteca será necessário remover antes suas referências na fila e no histórico, e destruir fila/histórico passando `NULL` no callback de destruição para evitar *double free* ou ponteiros inválidos.
-- **Quando adicionar ponteiro `fim`?** Somente na M08 (otimização opcional para a fila), quando `lse_inserir_fim` precisar de custo O(1). Até a M05, `struct lse` mantém apenas `inicio` e `tamanho`.
+- **Quando adicionar ponteiro `fim`?** Somente na M08 (otimização opcional para a fila), quando `lse_inserir_fim` precisar de custo O(1). Até a M06, `struct lse` mantém apenas `inicio` e `tamanho`.
 
 ## M01 — Módulo `musica` e memória dinâmica
 - `t_musica` representa o registro de domínio com `id`, `titulo[80]`, `artista[80]` e `duracao`.
@@ -103,3 +103,27 @@ retorne 1
   - *Risco de critérios diferentes na mesma lista:* a pré-condição de ordenação é quebrada; o percurso para na primeira carga maior segundo o novo critério e a lista deixa de ficar globalmente ordenada para qualquer critério.
   - *Múltiplos critérios sem alterar `lse.c`:* como `lse_inserir_ordenado` delega a ordem ao callback `comparar(carga_existente, carga_nova)`, basta o chamador passar callbacks distintos (por título com `strcmp`, por duração ou por `id`) sem nenhuma alteração no módulo da lista.
   - *Ordem relativa de chaves iguais:* mantida integralmente (algoritmo estável), porque `comparar(...) <= 0` percorre todos os empates antes de inserir o novo nó.
+
+## M06 — TAD Pilha por composição
+Evolução do estado da pilha na sequência da Atividade 1 (empilhar A, B, C; consultar topo; desempilhar; empilhar D):
+
+```
+inicial:              topo ──► NULL
+empilhar(A):          topo ──► [A|NULL]
+empilhar(B):          topo ──► [B]──► [A|NULL]
+empilhar(C):          topo ──► [C]──► [B]──► [A|NULL]
+topo():               retorna C (pilha inalterada)
+desempilhar():        retorna C -> topo ──► [B]──► [A|NULL]
+empilhar(D):          topo ──► [D]──► [B]──► [A|NULL]
+```
+
+Ordem de saída restante ao desempilhar até esvaziar: **D, B, A** (política LIFO).
+
+- **Relação de composição:** `struct pilha { t_lse *lista; };` permanece privada em `src/pilha.c`, enquanto `include/pilha.h` expõe apenas o tipo opaco `t_pilha`. Todas as operações delegam exclusivamente à interface pública de `include/lse.h` (`lse_criar`, `lse_inserir_inicio`, `lse_remover_inicio`, `lse_primeiro` e `lse_destruir`), sem acessar `t_elem`, sem tocar em campos internos de `t_lse` e sem incluir `lse.c`.
+- **Propriedade das cargas:** a pilha não copia cargas nem valida carga `NULL` (cargas não nulas são assumidas pela convenção da M06 para evitar ambiguidade com pilha vazia). No histórico futuro (M07), a pilha guardará apenas referências emprestadas das músicas pertencentes à biblioteca, devendo ser destruída com `destruir_carga = NULL`. O callback destruidor só deve ser usado quando a pilha detiver posse exclusiva das cargas alocadas.
+- **Complexidade:** `pilha_criar`, `pilha_empilhar`, `pilha_desempilhar` e `pilha_topo` são **O(1)** (delegando às operações O(1) na cabeça da LSE); `pilha_destruir` é **O(n)** (desconsiderando o custo do callback `destruir_carga`).
+- **Reflexões da M06:**
+  - *Inserção/remoção no início O(1) vs. remoção no fim da LSE:* na cabeça da LSE basta atualizar `inicio`, com custo O(1). Remover no fim de uma LSE custaria **O(n)**, porque seria necessário percorrer toda a cadeia até encontrar o penúltimo nó para atualizar seu ponteiro `prox` para `NULL`.
+  - *Por que `pilha_topo` não pode remover a carga:* consultar o topo é uma operação somente leitura; remover alteraria o estado da pilha de forma inesperada para quem apenas quer inspecionar o elemento mais recente antes de decidir desempilhá-lo.
+  - *Por que destruir a pilha do histórico não deve liberar as músicas da biblioteca:* a biblioteca é a dona das músicas; se o histórico as liberasse ao ser destruído, deixaria ponteiros inválidos na biblioteca (e risco de liberação dupla quando a biblioteca fosse destruída).
+  - *Composição vs. duplicação da implementação:* na composição, `pilha` reutiliza `t_lse` por meio da sua interface pública, concentrando encadeamento e gerenciamento de nós em um único lugar (`lse.c`); duplicar a implementação repetiria a lógica de nós e ponteiros, aumentando a chance de erros e retrabalho na manutenção.

@@ -129,3 +129,49 @@ A carga `NULL` é permitida pela decisão da M03, mas `lse_buscar`, `lse_remover
 - **Complexidade:** tempo O(1) no melhor caso (vazia ou início) e O(n) no caso médio/pior caso (meio ou fim); espaço auxiliar O(1).
 - **Invariantes preservadas:** `tamanho` aumenta exatamente em 1; `tamanho` == nós alcançáveis; `inicio != NULL` quando `tamanho > 0`; último `prox == NULL`; sem ciclos; ordenação mantida com estabilidade.
 - **Testes associados:** `missoes/M05/test_m05.c` (`teste_vazia_inicio_meio_fim`, `teste_duplicados_estaveis`, `teste_invalido_e_reinsercao`).
+
+## M06 — Contratos implementados (`pilha` — composição sobre `lse`)
+### `t_pilha *pilha_criar(void)`
+- **Pré-condições:** nenhuma.
+- **Pós-condições:** aloca a estrutura `t_pilha` e sua `t_lse` interna vazia (`lse_criar`). Em caso de falha parcial (falha ao criar a lista interna após alocar `t_pilha`), libera `t_pilha` antes de retornar `NULL`.
+- **Retorno:** ponteiro válido para `t_pilha` em sucesso; `NULL` em falha de memória.
+- **Memória:** alocada por `pilha_criar`; deve ser liberada pelo chamador com `pilha_destruir`.
+- **Complexidade:** tempo O(1), espaço auxiliar O(1).
+- **Invariantes preservadas:** `pilha->lista != NULL` e lista interna satisfaz os invariantes da LSE vazia.
+- **Testes associados:** `missoes/M06/test_m06.c` (`lifo`, `independentes`, `propriedade`), `tests/test_pilha.c`.
+
+### `int pilha_empilhar(t_pilha *pilha, void *carga)`
+- **Pré-condições:** `pilha != NULL`; usar `carga != NULL` na M06 (carga `NULL` é ambígua com retorno de pilha vazia, mas não é rejeitada pela função).
+- **Pós-condições:** delega para `lse_inserir_inicio(pilha->lista, carga)`, colocando `carga` no topo sem copiá-la. Em falha, a pilha permanece inalterada.
+- **Retorno:** `1` em sucesso; `0` se `pilha == NULL` ou se houver falha de alocação na LSE.
+- **Memória:** a LSE interna aloca apenas o nó; a carga permanece sob posse do chamador.
+- **Complexidade:** tempo O(1), espaço auxiliar O(1).
+- **Invariantes preservadas:** topo atualizado para a carga recém-empilhada; invariantes da LSE preservados.
+- **Testes associados:** `missoes/M06/test_m06.c` (`lifo`, `independentes`, `propriedade`, `invalidos`), `tests/test_pilha.c`.
+
+### `void *pilha_desempilhar(t_pilha *pilha)`
+- **Pré-condições:** nenhuma (`pilha` pode ser `NULL`).
+- **Pós-condições:** delega para `lse_remover_inicio(pilha->lista)`, removendo o elemento do topo e devolvendo sua carga sem liberá-la.
+- **Retorno:** ponteiro da carga do topo; `NULL` se `pilha == NULL` ou pilha vazia.
+- **Memória:** libera apenas o nó interno da LSE; a carga continua sob responsabilidade do chamador.
+- **Complexidade:** tempo O(1), espaço auxiliar O(1).
+- **Invariantes preservadas:** ordem LIFO mantida; topo passa ao elemento imediatamente anterior (ou `NULL` se esvaziar).
+- **Testes associados:** `missoes/M06/test_m06.c` (`lifo`, `independentes`, `propriedade`, `invalidos`), `tests/test_pilha.c`.
+
+### `void *pilha_topo(const t_pilha *pilha)`
+- **Pré-condições:** nenhuma (`pilha` pode ser `NULL`).
+- **Pós-condições:** delega para `lse_primeiro(pilha->lista)` sem modificar a pilha.
+- **Retorno:** ponteiro da carga no topo; `NULL` se `pilha == NULL` ou pilha vazia.
+- **Memória:** operação somente leitura; não aloca nem libera memória.
+- **Complexidade:** tempo O(1), espaço auxiliar O(1).
+- **Invariantes preservadas:** todas (operação não destrutiva).
+- **Testes associados:** `missoes/M06/test_m06.c` (`lifo`, `independentes`, `invalidos`), `tests/test_pilha.c`.
+
+### `void pilha_destruir(t_pilha *pilha, void (*destruir_carga)(void *))`
+- **Pré-condições:** `pilha` é `NULL` ou uma pilha criada por `pilha_criar`. Se `destruir_carga != NULL`, todas as cargas ainda presentes devem pertencer exclusivamente à pilha.
+- **Pós-condições:** delega para `lse_destruir(pilha->lista, destruir_carga)` e libera a estrutura `t_pilha`. Se `pilha == NULL`, não faz nada.
+- **Retorno:** nenhum (`void`).
+- **Memória:** libera todos os nós internos e o objeto `t_pilha`; cargas só são liberadas quando `destruir_carga != NULL` (usar `NULL` para referências emprestadas, como no histórico futuro).
+- **Complexidade:** tempo O(n) (desconsiderando o custo do callback), espaço auxiliar O(1).
+- **Invariantes preservadas:** sem vazamento de nós nem do descritor `t_pilha`.
+- **Testes associados:** `missoes/M06/test_m06.c` (`lifo`, `independentes`, `propriedade`, `invalidos`), `tests/test_pilha.c`.

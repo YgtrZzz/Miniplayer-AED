@@ -10,10 +10,10 @@
 | T05 | M01 | `musica_destruir` | ponteiro `NULL` | sem erro / sem acesso inválido | igual | ok |
 
 ## Casos-limite
-- **Estrutura vazia:** testada em M02, M03, M04 e M05 (`lse_tamanho == 0`, `lse_primeiro == NULL`, `lse_percorrer` com 0 visitas, `lse_buscar`/`lse_remover`/`lse_remover_inicio` retornando `NULL`, `lse_inserir_fim` e `lse_inserir_ordenado` inserindo o primeiro nó corretamente).
-- **Estrutura com um elemento:** testada em M03, M04 e M05 (inserção no início, no fim e ordenada antes/depois do único elemento, percurso com 1 visita, remoção por chave e `lse_remover_inicio` devolvendo a lista ao estado vazio `inicio == NULL` e `tamanho == 0`, seguida de reinserção).
+- **Estrutura vazia:** testada em M02, M03, M04, M05 e M06 (`lse_tamanho == 0`, `lse_primeiro == NULL`, `lse_percorrer` com 0 visitas, `lse_buscar`/`lse_remover`/`lse_remover_inicio` retornando `NULL`, `lse_inserir_fim` e `lse_inserir_ordenado` inserindo o primeiro nó corretamente, e na pilha `pilha_topo`/`pilha_desempilhar` retornando `NULL` e `pilha_destruir` em pilha vazia).
+- **Estrutura com um elemento:** testada em M03, M04, M05 e M06 (inserção no início, no fim e ordenada antes/depois do único elemento, percurso com 1 visita, remoção por chave, `lse_remover_inicio` e `pilha_desempilhar` devolvendo a estrutura ao estado vazio, seguida de reinserção/reempilhamento).
 - **Chave inexistente:** testada em M04 (`lse_buscar` e `lse_remover` retornam `NULL` e preservam o tamanho e o encadeamento da lista).
-- **Falha de alocação (estratégia de simulação):** o código verifica o retorno `NULL` de `malloc` em `musica_criar`, `lse_criar`, `lse_inserir_inicio`, `lse_inserir_fim` e `lse_inserir_ordenado`, retornando `NULL` ou `0` sem alterar a lista. A falha não foi forçada em execução; para simulá-la em um teste controlado, pode-se substituir temporariamente `malloc` por uma função ou macro auxiliar de teste que devolva `NULL` propositalmente.
+- **Falha de alocação (estratégia de simulação):** o código verifica o retorno `NULL` de `malloc` em `musica_criar`, `lse_criar`, `lse_inserir_inicio`, `lse_inserir_fim`, `lse_inserir_ordenado` e `pilha_criar` (nesta última, liberando `pilha` caso `lse_criar()` falhe), retornando `NULL` ou `0` sem alterar a estrutura. A falha não foi forçada em execução; para simulá-la em um teste controlado, pode-se substituir temporariamente `malloc` por uma função ou macro auxiliar de teste que devolva `NULL` propositalmente.
 
 ## Memória
 - **Ambiente e compilação:** Windows com GCC (MSYS2 UCRT64), compilando todos os módulos e testes com `-std=c11 -Wall -Wextra -Wpedantic -g -Iinclude` sem nenhum aviso (*warning*).
@@ -22,6 +22,7 @@
   - `lse_criar` aloca 1 `t_lse`; `lse_inserir_inicio`, `lse_inserir_fim` e `lse_inserir_ordenado` alocam 1 `t_elem` por inserção.
   - `lse_remover` e `lse_remover_inicio` liberam apenas o `t_elem` removido e devolvem a carga.
   - `lse_destruir` salva `atual->prox` antes de chamar `destruir_carga(atual->carga)` (quando não nulo) e `free(atual)`, encerrando com `free(lista)`.
+  - `pilha_criar` aloca 1 `t_pilha` e 1 `t_lse` (liberando `t_pilha` se `lse_criar()` falhar); `pilha_destruir` chama `lse_destruir` repassando o callback opcional e libera `t_pilha`.
 - **Nota sobre ferramentas:** o Valgrind não está disponível nativamente no Windows; caso o projeto seja executado em Linux/WSL antes da entrega final, será rodado `valgrind --leak-check=full` sobre os binários de `build/`.
 
 ## M02 — Resultados (`lse` — contrato de lista vazia)
@@ -69,3 +70,16 @@ Comandos executados (a partir da raiz `miniplayer/`): compilação individual co
 | T37 | M01–M04 | regressão | `test_musica`, `test_lse`, `test_m02`, `test_m03`, `test_m04` | todos passam sem avisos | igual | ok |
 
 Comandos executados (Windows/MSYS2): `mingw32-make -n test_missoes` (confirmando descoberta automática de `test_m02`, `test_m03`, `test_m04` e `test_m05`) e compilação/execução com `gcc -std=c11 -Wall -Wextra -Wpedantic -g -Iinclude` de todos os binários sem avisos.
+
+## M06 — Resultados (`pilha` — composição sobre `lse`)
+| ID | Missão | Função/contrato | Cenário | Esperado | Obtido | Status |
+|---|---|---|---|---|---|---|
+| T38 | M06 | `test_m06` (antes da implementação) | stubs de `src/pilha.c` | falha na asserção `p != NULL` (linha 8) | `Assertion failed: p` | ok |
+| T39 | M06 | `lifo` (`test_m06.c`) | vazia, empilhar a/b, topo 2x, desempilhar b, empilhar c, desempilhar c/a/vazia, reempilhar | ordem LIFO e topo não destrutivo | igual | ok |
+| T40 | M06 | `independentes` (`test_m06.c`) | duas pilhas `p` e `q` com structs distintos | operações em `p` não afetam `q` | igual | ok |
+| T41 | M06 | `propriedade` (`test_m06.c`) | 3 cargas no heap; desempilhar 1 (sem liberar) e destruir restantes com callback; destruir vazia com callback | carga desempilhada íntegra; callback chamado 2 vezes (e 0 na vazia) | igual | ok |
+| T42 | M06 | `invalidos` (`test_m06.c`) | `pilha == NULL` em empilhar, topo, desempilhar e destruir | `0` / `NULL` / sem efeito | igual | ok |
+| T43 | M06 | `teste_intercalacao` (`tests/test_pilha.c`) | empilhar A, B, C; topo 2x; desempilhar C; empilhar D; desempilhar D, B, A; esvaziar e reusar | ordem `C`, depois `D, B, A`, depois `NULL` e reuso limpo | `test_pilha: OK` | ok |
+| T44 | M01–M05 | regressão | `test_musica`, `test_lse`, `test_m02`, `test_m03`, `test_m04`, `test_m05` | todos passam sem avisos | igual | ok |
+
+Comandos executados (Windows/MSYS2): `mingw32-make -n test_missoes` (confirmando descoberta automática de `test_m02` a `test_m06`) e compilação/execução com `gcc -std=c11 -Wall -Wextra -Wpedantic -g -Iinclude` de todos os testes (`test_m06`, `test_pilha` e regressão M01–M05) sem avisos.
