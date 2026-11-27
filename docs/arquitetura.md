@@ -15,7 +15,7 @@ MiniPlayer → (LSE, Pilha, Fila) → LSE → t_elem interno.
 - **Por que `void *`?** Permite que a mesma LSE armazene qualquer tipo de dado (`int`, `t_musica`, etc.) sem duplicar código e sem acoplar `lse.c` ao módulo `musica`. Operações que precisam inspecionar ou liberar a carga recebem funções callback (`t_comparador`, `t_lse_visitar`, `destruir_carga`).
 - **Quem é dono das cargas?** Quem alocou a carga (por exemplo, a biblioteca do MiniPlayer é dona das `t_musica`). A LSE é dona apenas dos nós (`t_elem`); ela só libera as cargas se `lse_destruir` receber um callback destruidor não nulo.
 - **Como tratar referências compartilhadas?** Como a biblioteca possui as músicas e estruturas futuras (fila e histórico) apenas guardam ponteiros para elas, ao remover ou liberar uma música da biblioteca será necessário remover antes suas referências na fila e no histórico, e destruir fila/histórico passando `NULL` no callback de destruição para evitar *double free* ou ponteiros inválidos.
-- **Quando adicionar ponteiro `fim`?** Somente na M08 (otimização opcional para a fila), quando `lse_inserir_fim` precisar de custo O(1). Até a M06, `struct lse` mantém apenas `inicio` e `tamanho`.
+- **Quando adicionar ponteiro `fim`?** Somente na M08 (otimização opcional para a fila), quando `lse_inserir_fim` precisar de custo O(1). Até a M07, `struct lse` mantém apenas `inicio` e `tamanho`.
 
 ## M01 — Módulo `musica` e memória dinâmica
 - `t_musica` representa o registro de domínio com `id`, `titulo[80]`, `artista[80]` e `duracao`.
@@ -127,3 +127,27 @@ Ordem de saída restante ao desempilhar até esvaziar: **D, B, A** (política LI
   - *Por que `pilha_topo` não remove:* consultar o topo é só leitura; se removesse, perderíamos o elemento do topo só por olhar.
   - *Por que destruir o histórico não libera as músicas:* a biblioteca é dona das músicas; liberar no histórico deixaria ponteiros inválidos na biblioteca e causaria liberação dupla depois.
   - *Composição vs. duplicação:* na composição, `pilha` reutiliza `lse` pela interface pública sem repetir código de nós e ponteiros; duplicar a lista repetiria lógica e daria mais margem para bugs e retrabalho.
+
+## M07 — Histórico e navegação (`player`)
+Novo módulo `player` (`include/player.h` e `src/player.c`) dependendo apenas de `pilha.h` e `musica.h` (sem acessar `lse.h` nem `t_elem`):
+
+```
+player -> (pilha historico, pilha avanco, t_musica *atual) -> pilha -> lse -> t_elem
+```
+
+Exemplo de estado (pilhas da base para o topo):
+- `Criar`: `historico = []`, `atual = NULL`, `avanco = []`
+- `Reproduzir A, B, C`: `historico = [A, B]`, `atual = C`, `avanco = []`
+- `Anterior`, `Anterior`: `historico = []`, `atual = A`, `avanco = [C, B]`
+- `Avançar`: `historico = [A]`, `atual = B`, `avanco = [C]`
+- `Reproduzir D`: `historico = [A, B]`, `atual = D`, `avanco = []` (ramificação limpa o avanço)
+
+- **Composição e encapsulamento:** `struct player { t_musica *atual; t_pilha *historico; t_pilha *avanco; };` fica privada em `src/player.c`. Toda navegação usa apenas `pilha_criar`, `pilha_empilhar`, `pilha_desempilhar`, `pilha_topo` e `pilha_destruir`.
+- **Referências emprestadas:** o player não é dono das músicas; ele só guarda ponteiros. `player_destruir` chama `pilha_destruir(..., NULL)` nas duas pilhas e nunca libera as músicas. Também nunca empilhamos `NULL`.
+- **Ordem segura em falha de alocação:** em `player_anterior` e `player_avancar`, primeiro consultamos `pilha_topo` na pilha de origem; depois tentamos `pilha_empilhar` a atual na pilha de destino; só se der certo chamamos `pilha_desempilhar` da origem. Em `player_reproduzir`, empilhamos a atual no histórico antes de limpar `avanco` e trocar `atual`. Assim, se faltar memória, o estado anterior fica intacto.
+- **Complexidade:** `player_criar`, `player_anterior`, `player_avancar` e `player_atual` são **O(1)**; `player_reproduzir` é **O(1)** quando repete a mesma música ou `avanco` está vazio e **O(k)** quando precisa esvaziar `k` itens de `avanco`; `player_destruir` é **O(h + k)** (`h` itens no histórico e `k` no avanço).
+- **Reflexões da M07:**
+  - *Por que anterior e avançar custam O(1)?* Porque fazem só `pilha_topo`, `pilha_empilhar` e `pilha_desempilhar`, todas O(1) no topo da pilha.
+  - *Por que selecionar outra música pode custar O(k)?* Porque ao tocar uma música diferente precisamos limpar todos os `k` elementos da pilha `avanco` um por um com `pilha_desempilhar`.
+  - *Como impedir referências pendentes se a biblioteca excluir uma música?* Antes de liberar uma música na biblioteca, será preciso remover todas as referências a ela em `atual`, `historico` e `avanco` (ou limpar essas referências antes da exclusão, o que ficará para missões futuras).
+  - *A mesma música pode aparecer em posições diferentes do histórico?* Sim. Ao tocar `A → B → A → C`, a música `A` aparece duas vezes no histórico porque ele guarda a ordem de reprodução (apenas ponteiros para a mesma música).

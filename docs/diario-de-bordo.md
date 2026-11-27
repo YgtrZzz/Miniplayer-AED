@@ -53,3 +53,12 @@
 - **Problema encontrado e solução:** antes da implementação, `test_m06.c` falhou na linha 8 (`Assertion failed: p`) porque os stubs retornavam `NULL`. Depois de incluir `<stdlib.h>` e delegar para `lse_*`, passou tudo sem avisos.
 - **Evidências de testes:** `mingw32-make -n test_missoes` achou `test_m06` sozinho; GCC (`-std=c11 -Wall -Wextra -Wpedantic -g -Iinclude`) compilou sem avisos; passaram `test_m06`, `test_pilha` (com `teste_intercalacao`) e toda a regressão (`test_musica`, `test_lse`, `test_m02` a `test_m05`). Só `test_fila` segue falhando até a M08.
 - **Próxima ação:** M07 — integrar a pilha no histórico de reprodução.
+
+## Missão M07 — 27/11
+- **Integrantes e papéis:** Codificador: Ygor Gutierrz | Revisor: André Silveira
+- **Objetivo:** criar o módulo `player` (`include/player.h` e `src/player.c`) para controlar histórico e avanço usando duas instâncias independentes de `t_pilha`, sem liberar músicas nem acessar a LSE diretamente.
+- **O que implementamos:** `player_criar`, `player_reproduzir`, `player_anterior`, `player_avancar`, `player_atual` e `player_destruir` em `src/player.c`; interface opaca em `include/player.h`; teste próprio em `tests/test_player.c`; instalação de `missoes/M07/` sem alterar o `Makefile`.
+- **Decisão técnica e justificativa:** usamos apenas `pilha.h` e uma função auxiliar `limpar_pilha` para esvaziar `avanco` ao ramificar sem precisar destruir/recriar a pilha. Em `anterior` e `avancar`, consultamos `pilha_topo` e empilhamos no destino antes de chamar `pilha_desempilhar` da origem, preservando o estado se faltar memória. O teste próprio ficou em `tests/test_player.c` para manter `missoes/M07/test_m07.c` igual ao do kit.
+- **Problema encontrado e solução:** antes de criar `player.h`/`player.c`, `mingw32-make -n test_m07` acusou corretamente falta de `src/player.c`. Após criar os dois arquivos e validar a ordem das operações para falhas de alocação, compilou e passou sem avisos.
+- **Evidências de testes:** `mingw32-make -n test_missoes` detectou `test_m07` automaticamente; GCC (`-std=c11 -Wall -Wextra -Wpedantic -g -Iinclude`) sem avisos; passaram `test_m07` (`M07: todos os testes passaram.`), `test_player` (`test_player: OK`) e toda a regressão (`test_musica`, `test_lse`, `test_pilha`, `test_m02` a `test_m06`).
+- **Próxima ação:** M08 — implementar o TAD Fila (`src/fila.c`) por composição sobre a LSE.

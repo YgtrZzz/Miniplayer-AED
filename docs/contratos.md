@@ -175,3 +175,58 @@ A carga `NULL` é permitida pela decisão da M03, mas `lse_buscar`, `lse_remover
 - **Complexidade:** O(n) (sem contar o custo do callback).
 - **Invariantes preservadas:** nenhum nó nem a estrutura `t_pilha` ficam vazando.
 - **Testes associados:** `missoes/M06/test_m06.c` (`lifo`, `independentes`, `propriedade`, `invalidos`), `tests/test_pilha.c`.
+
+## M07 — Contratos implementados (`player`)
+### `t_player *player_criar(void)`
+- **Pré-condições:** nenhuma.
+- **Pós-condições:** cria o controlador com `atual == NULL` e duas pilhas vazias (`historico` e `avanco`). Se alguma alocação falhar, libera o que já foi alocado antes de retornar `NULL`.
+- **Retorno:** ponteiro para `t_player` em sucesso; `NULL` se faltar memória.
+- **Memória:** alocada por `player_criar`; liberar com `player_destruir`.
+- **Complexidade:** O(1).
+- **Invariantes preservadas:** `historico != NULL`, `avanco != NULL`, ambos sem `NULL` internos.
+- **Testes associados:** `missoes/M07/test_m07.c`, `tests/test_player.c`.
+
+### `int player_reproduzir(t_player *p, t_musica *m)`
+- **Pré-condições:** `p != NULL` e `m != NULL`.
+- **Pós-condições:** se `p->atual == m`, retorna `1` sem mudar nada (preserva `avanco`). Se `p->atual == NULL`, define `p->atual = m` sem empilhar `NULL`. Se `p->atual != m`, empilha `p->atual` em `historico`, esvazia `avanco` e define `p->atual = m`. Se `pilha_empilhar` falhar, mantém o estado anterior intacto.
+- **Retorno:** `1` em sucesso; `0` se `p == NULL`, `m == NULL` ou erro de memória.
+- **Memória:** só aloca/libera nós das pilhas; não copia nem libera músicas.
+- **Complexidade:** O(1) se mesma música ou `avanco` vazio; O(k) se precisar esvaziar `k` itens de `avanco`.
+- **Invariantes preservadas:** nunca guarda `NULL` nas pilhas; estado intacto em erro.
+- **Testes associados:** `missoes/M07/test_m07.c` (`navegacao`, `independentes`, `invalidos`), `tests/test_player.c`.
+
+### `int player_anterior(t_player *p)`
+- **Pré-condições:** `p != NULL`.
+- **Pós-condições:** se `historico` estiver vazio, retorna `0` sem mudar nada. Caso contrário, empilha `p->atual` em `avanco` e move o topo de `historico` para `p->atual`. Se empilhar falhar, nada é removido de `historico`.
+- **Retorno:** `1` em sucesso; `0` se `p == NULL`, histórico vazio ou falha de alocação.
+- **Memória:** só manipula nós internos das pilhas; não libera músicas.
+- **Complexidade:** O(1).
+- **Invariantes preservadas:** nenhum `NULL` nas pilhas; estado preservado em falha.
+- **Testes associados:** `missoes/M07/test_m07.c`, `tests/test_player.c`.
+
+### `int player_avancar(t_player *p)`
+- **Pré-condições:** `p != NULL`.
+- **Pós-condições:** simétrica a `player_anterior`: se `avanco` estiver vazio, retorna `0`; senão empilha `p->atual` em `historico` e move o topo de `avanco` para `p->atual`, mantendo tudo intacto se empilhar falhar.
+- **Retorno:** `1` em sucesso; `0` se `p == NULL`, avanço vazio ou falha de alocação.
+- **Memória:** só manipula nós internos das pilhas; não libera músicas.
+- **Complexidade:** O(1).
+- **Invariantes preservadas:** nenhum `NULL` nas pilhas; estado preservado em falha.
+- **Testes associados:** `missoes/M07/test_m07.c`, `tests/test_player.c`.
+
+### `t_musica *player_atual(const t_player *p)`
+- **Pré-condições:** nenhuma (`p` pode ser `NULL`).
+- **Pós-condições:** não altera o player.
+- **Retorno:** ponteiro da música atual, ou `NULL` se `p == NULL` ou sem música.
+- **Memória:** só leitura.
+- **Complexidade:** O(1).
+- **Invariantes preservadas:** todas.
+- **Testes associados:** `missoes/M07/test_m07.c`, `tests/test_player.c`.
+
+### `void player_destruir(t_player *p)`
+- **Pré-condições:** `p` é `NULL` ou veio de `player_criar`.
+- **Pós-condições:** destrói `historico` e `avanco` com callback `NULL` e libera `p`. Se `p == NULL`, não faz nada.
+- **Retorno:** nenhum (`void`).
+- **Memória:** libera apenas as pilhas e `t_player`; **nunca** libera as músicas.
+- **Complexidade:** O(h + k), onde `h` é o tamanho do histórico e `k` o tamanho do avanço.
+- **Invariantes preservadas:** sem vazamento das pilhas/controlador e sem liberar músicas emprestadas.
+- **Testes associados:** `missoes/M07/test_m07.c`, `tests/test_player.c`.
